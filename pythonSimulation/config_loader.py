@@ -12,6 +12,8 @@ Header location
 Accepted syntax (anything else raises ConfigError)
     - blank lines
     - lines starting with // (comments)
+    - /* ... */ block comments that start at the beginning of a line and end
+      at the end of a line (nothing else on the opening/closing lines)
     - #pragma once
     - #define NAME VALUE [// trailing comment]
       where VALUE is an integer (-12, 3200) or decimal (1.5) literal.
@@ -142,8 +144,15 @@ def parse_header(path: str | os.PathLike) -> dict[str, int | float]:
         ) from None
 
     values: dict[str, int | float] = {}
+    in_block = False
+    block_start = 0
     for lineno, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.strip()
+        if in_block or line.startswith("/*"):
+            if not in_block:
+                block_start = lineno
+            in_block = not line.endswith("*/") or line == "/*"
+            continue
         if not line or line.startswith("//") or line == "#pragma once":
             continue
         m = _DEFINE_RE.match(line)
@@ -161,6 +170,8 @@ def parse_header(path: str | os.PathLike) -> dict[str, int | float]:
         if name in values:
             raise ConfigError(f"{path}:{lineno}: {name} defined more than once")
         values[name] = parsed
+    if in_block:
+        raise ConfigError(f"{path}:{block_start}: unterminated /* comment")
     return values
 
 

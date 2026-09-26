@@ -18,25 +18,25 @@ Values marked PROVISIONAL are placeholders until real hardware is measured. */
 // Carousel geometry
 // ---------------------------------------------------------------------------
 
-/* Number of bins on the carousel. Bins are numbered 0 .. BIN_COUNT-1, and the
-command protocol's valid bin range follows this value automatically.
-Derived (not stored): bin angle = 360 / BIN_COUNT degrees.
-If you change this, re-check that STEPS_PER_REV divides evenly by it. */
+// Number of bins on the carousel. Bins are numbered 0 .. BIN_COUNT-1, and the
+// command protocol's valid bin range follows this value automatically.
+// Derived (not stored): bin angle = 360 / BIN_COUNT degrees.
+// If you change this, re-check that STEPS_PER_REV divides evenly by it.
 #define BIN_COUNT 12
 
-/* PROVISIONAL: stepper steps per full carousel revolution, including
-microstepping and any gear/belt ratio. Placeholder assumes a 200-step motor
-at 1/16 microstepping, direct drive. Replace once the motor, driver
-microstep setting and drive ratio are known.
-Derived (not stored): steps per bin = STEPS_PER_REV / BIN_COUNT.
-WARNING: with the placeholder values this is NOT a whole number
-(3200 / 12 = 266.67 steps per bin). Until real hardware fixes that, bin
-positions must be computed as round(bin * STEPS_PER_REV / BIN_COUNT) from
-home, never by adding up a rounded per-bin step count (the rounding error
-would accumulate and the carousel would drift off-bin).
-When choosing the real motor, microstepping and gearing, prefer a total that
-divides evenly by BIN_COUNT, e.g. 2400 (1/4 microstep, 3:1 gear) or 4800
-(1/8 microstep, 3:1 gear) for 12 bins. */
+// PROVISIONAL: stepper steps per full carousel revolution, including
+// microstepping and any gear/belt ratio. Placeholder assumes a 200-step motor
+// at 1/16 microstepping, direct drive. Replace once the motor, driver
+// microstep setting and drive ratio are known.
+// Derived (not stored): steps per bin = STEPS_PER_REV / BIN_COUNT.
+// WARNING: with the placeholder values this is NOT a whole number
+// (3200 / 12 = 266.67 steps per bin). Until real hardware fixes that, bin
+// positions must be computed as round(bin * STEPS_PER_REV / BIN_COUNT) from
+// home, never by adding up a rounded per-bin step count (the rounding error
+// would accumulate and the carousel would drift off-bin).
+// When choosing the real motor, microstepping and gearing, prefer a total that
+// divides evenly by BIN_COUNT, e.g. 2400 (1/4 microstep, 3:1 gear) or 4800
+// (1/8 microstep, 3:1 gear) for 12 bins.
 #define STEPS_PER_REV 3200
 
 // ---------------------------------------------------------------------------
@@ -59,14 +59,14 @@ divides evenly by BIN_COUNT, e.g. 2400 (1/4 microstep, 3:1 gear) or 4800
 // Dispense behavior
 // ---------------------------------------------------------------------------
 
-/* PROVISIONAL: time (ms) the gate stays open, watching the IR beam for a
-falling part, before the attempt is judged. Replace with the measured
-worst-case drop time from bin to beam plus margin. */
+// PROVISIONAL: time (ms) the gate stays open, watching the IR beam for a
+// falling part, before the attempt is judged. Replace with the measured
+// worst-case drop time from bin to beam plus margin.
 #define SENSOR_WAIT_MS 300
 
 // Total gate openings allowed per dispense request, including the first one.
 // Attempts after the first are retries (no re-rotation). Must be >= 1.
-#define MAX_ATTEMPTS 4
+#define MAX_ATTEMPTS 3
 
 // ---------------------------------------------------------------------------
 // Command protocol (see docs/protocol.md)
