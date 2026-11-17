@@ -1,109 +1,116 @@
-/* config.h -- single source of truth for all machine constants.
-Included directly by the firmware AND parsed at runtime by the Python
-simulation (pythonSimulation/config_loader.py). To keep that parser simple,
-this file follows strict rules:
-  - Only `#define NAME VALUE` lines (plus `#pragma once` and comments).
-  - VALUE is a plain integer or decimal literal: no expressions, no suffixes
-    (e.g. no 3200UL), no references to other names.
-  - One define per line. Each define's comment sits on its own line(s)
-    directly above it, starting with `//`.
-  - Derived values (bin angle, steps per bin, valid bin range) are NOT stored
-    here. The firmware and the Python loader each compute them from the raw
-    values below, so there is never a second number that can drift.
-Values marked PROVISIONAL are placeholders until real hardware is measured. */
+// config.h -- pins, tuning constants and the bin table (firmware spec, sections
+// 2.1 and 4). Everything that may need adjusting on the real machine is here.
 
 #pragma once
 
-// ---------------------------------------------------------------------------
-// Carousel geometry
-// ---------------------------------------------------------------------------
-
-// Number of bins on the carousel. Bins are numbered 0 .. BIN_COUNT-1, and the
-// command protocol's valid bin range follows this value automatically.
-// Derived (not stored): bin angle = 360 / BIN_COUNT degrees.
-// If you change this, re-check that STEPS_PER_REV divides evenly by it.
-#define BIN_COUNT 12
-
-// PROVISIONAL: stepper steps per full carousel revolution, including
-// microstepping and any gear/belt ratio. Placeholder assumes a 200-step motor
-// at 1/16 microstepping, direct drive. Replace once the motor, driver
-// microstep setting and drive ratio are known.
-// Derived (not stored): steps per bin = STEPS_PER_REV / BIN_COUNT.
-// WARNING: with the placeholder values this is NOT a whole number
-// (3200 / 12 = 266.67 steps per bin). Until real hardware fixes that, bin
-// positions must be computed as round(bin * STEPS_PER_REV / BIN_COUNT) from
-// home, never by adding up a rounded per-bin step count (the rounding error
-// would accumulate and the carousel would drift off-bin).
-// When choosing the real motor, microstepping and gearing, prefer a total that
-// divides evenly by BIN_COUNT, e.g. 2400 (1/4 microstep, 3:1 gear) or 4800
-// (1/8 microstep, 3:1 gear) for 12 bins.
-#define STEPS_PER_REV 3200
+#include <Arduino.h>
 
 // ---------------------------------------------------------------------------
-// Gate / servo motion
+// Pins
 // ---------------------------------------------------------------------------
 
-// PROVISIONAL: servo angle (degrees) at which the gate fully blocks the chute.
-// Replace with the angle measured on the assembled gate.
-#define GATE_CLOSED_ANGLE 0
+// ULN2003 driver inputs IN1..IN4.
+constexpr uint8_t PIN_STEP_IN1 = 8;
+constexpr uint8_t PIN_STEP_IN2 = 9;
+constexpr uint8_t PIN_STEP_IN3 = 10;
+constexpr uint8_t PIN_STEP_IN4 = 11;
 
-// PROVISIONAL: servo angle (degrees) at which the gate is fully open.
-// Replace with the angle measured on the assembled gate.
-#define GATE_OPEN_ANGLE 90
+// Gate servo signal.
+constexpr uint8_t PIN_SERVO = 6;
 
-// PROVISIONAL: time (ms) allowed for the servo to travel between closed and
-// open. Replace with measured travel time plus a safety margin.
-#define GATE_TRAVEL_MS 500
+// Hall sensor (read with INPUT_PULLUP) and the level it outputs while the
+// magnet is in front of it. Confirm the level on the hardware.
+constexpr uint8_t PIN_HALL = 3;
+constexpr auto HALL_ACTIVE_LEVEL = LOW;
 
-// ---------------------------------------------------------------------------
-// Dispense behavior
-// ---------------------------------------------------------------------------
-
-// PROVISIONAL: time (ms) the gate stays open, watching the IR beam for a
-// falling part, before the attempt is judged. Replace with the measured
-// worst-case drop time from bin to beam plus margin.
-#define SENSOR_WAIT_MS 300
-
-// Total gate openings allowed per dispense request, including the first one.
-// Attempts after the first are retries (no re-rotation). Must be >= 1.
-#define MAX_ATTEMPTS 3
+// Buttons, wired to GND (INPUT_PULLUP, LOW = pressed).
+constexpr uint8_t PIN_BTN_NEXT = 4;
+constexpr uint8_t PIN_BTN_DISPENSE = 5;
 
 // ---------------------------------------------------------------------------
-// Command protocol (see docs/protocol.md)
+// Carousel
 // ---------------------------------------------------------------------------
 
-// Serial baud rate for the text command protocol.
-#define SERIAL_BAUD 115200
+// Stepper steps per carousel revolution. Verified: holds position over many
+// revolutions.
+constexpr int32_t STEPS_PER_REV = 2048;
 
-// Maximum command line length in characters, excluding the line terminator.
-// Longer lines are discarded and answered with ERR LINE_TOO_LONG.
-#define CMD_MAX_LINE_LEN 32
+// Speed of normal moves. Verified.
+constexpr int STEPPER_RPM = 15;
+
+// Slower speed while searching for the magnet, for a repeatable home position.
+constexpr int HOMING_RPM = 5;
+
+constexpr uint8_t BIN_COUNT = 10;
+
+// Steps from the magnet trigger point to bin 0 aligned over the dispense hole,
+// 0 .. STEPS_PER_REV-1. Calibrate on the built machine.
+constexpr int32_t HOME_OFFSET_STEPS = 0;
+static_assert(HOME_OFFSET_STEPS >= 0 && HOME_OFFSET_STEPS < STEPS_PER_REV,
+              "HOME_OFFSET_STEPS must be less than one revolution");
+
+// Homing gives up after this many steps (1.2 revolutions).
+constexpr int32_t HOMING_TIMEOUT_STEPS = STEPS_PER_REV * 12 / 10;
+
+// A drift correction larger than this prints a warning (slipping or a loose
+// magnet).
+constexpr int32_t DRIFT_WARN_STEPS = 20;
+
+// The coils stay powered this long after the last step of a move, so the rotor
+// finishes that step before the power is cut.
+constexpr uint16_t COIL_HOLD_MS = 20;
 
 // ---------------------------------------------------------------------------
-// Pin assignments (PLACEHOLDERS for Arduino UNO R4 WiFi; confirm when wiring)
+// Gate
 // ---------------------------------------------------------------------------
 
-// Stepper driver STEP input (one pulse = one (micro)step).
-#define PIN_STEPPER_STEP 2
+// Servo angles. Tune both on the real gate.
+constexpr int GATE_CLOSED_DEG = 90;
+constexpr int GATE_OPEN_DEG = 155;
 
-// Stepper driver DIR input (sets rotation direction).
-#define PIN_STEPPER_DIR 3
+// Time allowed for the servo to finish a move.
+constexpr uint16_t SERVO_TRAVEL_MS = 300;
 
-// Stepper driver ENABLE input (active LOW on A4988/DRV8825-style drivers).
-#define PIN_STEPPER_ENABLE 4
+// Pause after a carousel move before the gate may open.
+constexpr uint16_t SETTLE_MS = 200;
 
-// IR break-beam emitter power pin (lets firmware switch the emitter off to
-// check for ambient-light false readings).
-#define PIN_IR_EMITTER 5
+// Starting gate open time for uncalibrated bins.
+constexpr uint16_t DEFAULT_OPEN_MS = 150;
 
-// IR break-beam receiver digital input.
-#define PIN_IR_RECEIVER 6
+// ---------------------------------------------------------------------------
+// Buttons and serial
+// ---------------------------------------------------------------------------
 
-// Optional: manual test-trigger button (wired to GND, use INPUT_PULLUP).
-#define PIN_TEST_BUTTON 7
+// A button state counts once the raw reading has been stable this long.
+// Verified in the button bench test.
+constexpr uint16_t DEBOUNCE_MS = 50;
 
-// Gate servo signal (must be a PWM-capable pin).
-#define PIN_SERVO 9
+constexpr uint32_t SERIAL_BAUD = 115200;
 
-// Optional: status LED (13 = on-board LED_BUILTIN).
-#define PIN_STATUS_LED 13
+// The `t` command: pause between test cycles, and the largest count it accepts.
+// A test run cannot be interrupted, so the count is capped.
+constexpr uint16_t TEST_INTERVAL_MS = 1500;
+constexpr uint16_t TEST_MAX_COUNT = 100;
+
+// How often the error message repeats while in the error state.
+constexpr uint16_t ERROR_REPRINT_MS = 5000;
+
+// ---------------------------------------------------------------------------
+// Bin table
+// ---------------------------------------------------------------------------
+
+// One entry per bin. Names are placeholders until bin contents are decided.
+// Calibration (spec section 7) only changes openMs: the `p` serial command
+// prints this table with the current values, ready to paste back in here.
+struct Bin {
+  const char* name;
+  uint16_t    openMs;   // how long the gate stays open
+};
+
+// `inline` lets every source file include this header and share one table.
+inline Bin bins[BIN_COUNT] = {
+  {"Bin 0", DEFAULT_OPEN_MS}, {"Bin 1", DEFAULT_OPEN_MS}, {"Bin 2", DEFAULT_OPEN_MS},
+  {"Bin 3", DEFAULT_OPEN_MS}, {"Bin 4", DEFAULT_OPEN_MS}, {"Bin 5", DEFAULT_OPEN_MS},
+  {"Bin 6", DEFAULT_OPEN_MS}, {"Bin 7", DEFAULT_OPEN_MS}, {"Bin 8", DEFAULT_OPEN_MS},
+  {"Bin 9", DEFAULT_OPEN_MS},
+};
